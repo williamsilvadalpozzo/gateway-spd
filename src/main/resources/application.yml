@@ -1,0 +1,76 @@
+spring:
+  application:
+    name: gateway-spd
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
+  datasource:
+    url: ${DPZ_XML_ORACLE_JDBC_URL:jdbc:oracle:thin:@//${DPZ_XML_ORACLE_HOST:orcldevtst.c11muiyjxfz9.sa-east-1.rds.amazonaws.com}:${DPZ_XML_ORACLE_PORT:1521}/${DPZ_XML_ORACLE_SERVICE_NAME:OUTSYDEV}}
+    username: ${DPZ_XML_ORACLE_USERNAME:OUTSYSTEM}
+    password: ${DPZ_XML_ORACLE_PASSWORD:}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      pool-name: gateway-spd-pool
+      driver-class-name: oracle.jdbc.OracleDriver
+      jdbc-url: ${DPZ_XML_ORACLE_JDBC_URL:jdbc:oracle:thin:@//${DPZ_XML_ORACLE_HOST:orcldevtst.c11muiyjxfz9.sa-east-1.rds.amazonaws.com}:${DPZ_XML_ORACLE_PORT:1521}/${DPZ_XML_ORACLE_SERVICE_NAME:OUTSYDEV}}
+      username: ${DPZ_XML_ORACLE_USERNAME:OUTSYSTEM}
+      password: ${DPZ_XML_ORACLE_PASSWORD:}
+      auto-commit: true
+      initialization-fail-timeout: -1
+      maximum-pool-size: 50
+      minimum-idle: 20
+      idle-timeout: 60000
+      max-lifetime: 1200000
+      connection-timeout: 5000
+      leak-detection-threshold: 2000
+      validation-timeout: 5000
+
+server:
+  port: 8020
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+  tomcat:
+    max-http-form-post-size: 20MB
+    max-swallow-size: 20MB
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+    whitelabel:
+      enabled: false
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  info:
+    build:
+      enabled: true
+
+springdoc:
+  packages-to-scan: com.api.gateway.controller
+  swagger-ui:
+    path: /swagger/index.html
+
+logging:
+  level:
+    com.api.gateway: ${GATEWAY_LOG_LEVEL:INFO}
+    root: INFO
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: WARN
+
+gateway:
+  retencao-apos-fim: 5m
+  tempo-execucao-padrao: 4h
+  tempo-execucao-maximo: 24h
+  limpeza-intervalo-ms: 15000
