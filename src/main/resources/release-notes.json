@@ -1,0 +1,19 @@
+{
+  "product": "gateway-spd",
+  "title": "Gateway SPD — Release Notes",
+  "description": "Historico de versoes do redirecionamento de fluxo, procedure e chamada HTTP.",
+  "releases": [
+    {
+      "version": "1.0.1",
+      "date": "2026-10-20",
+      "summary": "Redirecionador HTTP generico com fila persistente no Oracle.",
+      "changes": [
+        "POST /requisicoes-http registra a chamada. Assincrono responde 202 e a fila executa. Sincrono responde 200 com o estado final.",
+        "GET /requisicoes-http/{id} consulta o estado. GET /requisicoes-http/{id}/resposta baixa o corpo gravado, inclusive zip.",
+        "A fila e FIFO pelo id, com varias instancias, SKIP LOCKED e varredura a cada 5 minutos das execucoes que passaram do proprio timeout.",
+        "O certificado cliente sai da pasta configurada, com balanceamento entre os arquivos. certificadosDestino confia no HTTPS daquela chamada.",
+        "Chave de idempotencia ja existente devolve o registro atual, sem executar de novo. Upload de arquivo fica de fora desta versao."
+      ]
+    }
+  ]
+}

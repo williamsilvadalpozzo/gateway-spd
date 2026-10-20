@@ -1,6 +1,6 @@
 # gateway-spd
 
-Serviço de redirecionamento. O Maker pede a execução, recebe um token na hora, e o gateway chama o fluxo do Maker em seguida. O estado fica só na memória.
+Serviço de redirecionamento. O Maker pede a execução de um fluxo ou de uma procedure e recebe um token na hora. O OutSystems também pode descrever uma chamada HTTP: o gateway executa, grava o resultado no Oracle e devolve o id.
 
 WAR `gateway-spd.war`, no mesmo modelo do `dpz-nfe`: Java 8, Spring Boot 2.7, Tomcat externo.
 
@@ -70,6 +70,52 @@ Executa uma procedure no Oracle do `dpz-nfe`. A resposta também é imediata, co
 `GET /processos/{token}`
 
 Devolve `EM_EXECUCAO`, `FINALIZADO` ou `ERRO`. Token ausente ou já removido responde `404`.
+
+## Chamada HTTP
+
+O endpoint do gateway não tem autenticação. O acesso fica restrito pela rede.
+
+Antes de subir, executar `sql/GATEWAY_REQUISICAO_HTTP.sql` no Oracle. O estado da fila não usa a memória dos processos do Maker.
+
+`POST /requisicoes-http`
+
+`assincrono: true` responde `202` com o id e a fila executa. `assincrono: false` executa na hora e responde `200` com o estado final. Se `chaveIdempotencia` já existir, a resposta é `200` com o estado atual, sem executar de novo.
+
+```json
+{
+  "metodo": "POST",
+  "url": "https://api.exemplo.com/recurso/123",
+  "parametros": [{"nome": "pagina", "valor": "1"}],
+  "headers": [
+    {"nome": "Authorization", "valor": "Bearer segredo"},
+    {"nome": "Content-Type", "valor": "application/json"}
+  ],
+  "tipoCorpo": "JSON",
+  "corpoTexto": "{\"campo\":\"valor\"}",
+  "tipoRetorno": "BINARIO",
+  "timeoutSegundos": 120,
+  "chaveIdempotencia": "pedido-123",
+  "assincrono": true,
+  "processo": "NFSE_ADN",
+  "lote": "filial-80213705001289",
+  "usarCertificado": false,
+  "certificadosDestino": []
+}
+```
+
+`tipoCorpo` aceita `NENHUM`, `JSON`, `TEXTO`, `XML`, `FORM_URLENCODED` e `BINARIO_BASE64`. Upload de arquivo não entra nesta versão. `GET` e `HEAD` usam `NENHUM`.
+
+`GET /requisicoes-http/{id}` devolve o estado, o status HTTP, o tipo e o tamanho. O corpo não vem nesse JSON.
+
+`GET /requisicoes-http/{id}/resposta` baixa o corpo gravado. Zip e demais binários saem por aqui.
+
+HTTP 2xx, 3xx, 4xx e 5xx do destino ficam `FINALIZADO`, com status e corpo. Timeout fica `TIMEOUT`. Falha de DNS, conexão ou TLS fica `ERRO`. Não há reenvio nem cancelamento.
+
+A fila é FIFO pelo id, com várias instâncias. A cada 5 minutos, execução `EM_EXECUCAO` que passou de `timeoutSegundos` vira `ERRO` com a mensagem `execucao interrompida na instancia <nome>`.
+
+Certificado cliente: `GATEWAY_CERT_PATH` e `GATEWAY_CERT_SENHA`. A pasta é lida na hora, os `.pfx` e `.p12` são balanceados pelo id, e falha de handshake tenta o próximo arquivo. `usarCertificado: true` pede esse certificado. `certificadosDestino` é a lista PEM pública para confiar no destino naquela chamada. `GATEWAY_INSTANCIA` fixa o nome da instância; sem ela, o gateway usa o hostname.
+
+Segredo de header, senha e conteúdo de certificado não entram no log.
 
 ## Actuator e Swagger
 

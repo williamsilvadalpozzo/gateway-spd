@@ -35,7 +35,10 @@ import org.springframework.test.web.servlet.MvcResult;
         "spring.datasource.hikari.maximum-pool-size=2",
         "spring.datasource.hikari.initialization-fail-timeout=-1",
         "spring.datasource.hikari.connection-timeout=1000",
-        "gateway.limpeza-intervalo-ms=600000"
+        "gateway.limpeza-intervalo-ms=600000",
+        "gateway.http.fila-intervalo-ms=600000",
+        "gateway.http.heartbeat-intervalo-ms=600000",
+        "gateway.http.varredura-intervalo-ms=600000"
 })
 class ProcessoControllerTest {
 
@@ -59,6 +62,9 @@ class ProcessoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/processos']").exists())
                 .andExpect(jsonPath("$.paths['/processos/procedure']").exists())
+                .andExpect(jsonPath("$.paths['/requisicoes-http']").exists())
+                .andExpect(jsonPath("$.paths['/requisicoes-http/{id}']").exists())
+                .andExpect(jsonPath("$.paths['/requisicoes-http/{id}/resposta']").exists())
                 .andExpect(jsonPath("$.info.title").value("gateway-spd"));
 
         int swagger = mvc.perform(get("/swagger/index.html")).andReturn().getResponse().getStatus();

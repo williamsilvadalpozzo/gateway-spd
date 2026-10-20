@@ -5,6 +5,7 @@ import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.api.gateway.service.NaoEncontradoException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -23,6 +24,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> argumento(IllegalArgumentException exception) {
         return ResponseEntity.badRequest().body(erro(exception.getMessage()));
+    }
+
+    @ExceptionHandler(NaoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> naoEncontrado(NaoEncontradoException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(erro(exception.getMessage()));
     }
 
     @ExceptionHandler({

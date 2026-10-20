@@ -29,6 +29,10 @@ spring:
       connection-timeout: 5000
       leak-detection-threshold: 2000
       validation-timeout: 5000
+  task:
+    scheduling:
+      pool:
+        size: 4
 
 server:
   port: 8020
@@ -74,3 +78,12 @@ gateway:
   tempo-execucao-padrao: 4h
   tempo-execucao-maximo: 24h
   limpeza-intervalo-ms: 15000
+  instancia: ${GATEWAY_INSTANCIA:1}
+  certificados:
+    path: ${GATEWAY_CERT_PATH:}
+    senha: ${GATEWAY_CERT_SENHA:}
+  http:
+    fila-intervalo-ms: 1000
+    heartbeat-intervalo-ms: 15000
+    varredura-intervalo-ms: 300000
+    max-redirects: 0
