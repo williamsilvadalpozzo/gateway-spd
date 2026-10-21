@@ -10,10 +10,12 @@ import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.List;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import org.apache.http.Header;
@@ -189,8 +191,17 @@ public class ClienteHttpApache implements ClienteHttpDestino {
                 .disableAutomaticRetries()
                 .disableContentCompression()
                 .disableCookieManagement();
-        if (ssl != null) {
-            builder.setSSLSocketFactory(new SSLConnectionSocketFactory(ssl, new DefaultHostnameVerifier()));
+        SSLContext contexto = ssl;
+        if (contexto == null) {
+            try {
+                contexto = SSLContext.getDefault();
+            } catch (NoSuchAlgorithmException e) {
+                contexto = null;
+            }
+        }
+        if (contexto != null) {
+            builder.setSSLSocketFactory(new SSLConnectionSocketFactory(
+                    contexto, new String[] { "TLSv1.2" }, null, new DefaultHostnameVerifier()));
         }
         return builder.build();
     }
@@ -297,6 +308,9 @@ public class ClienteHttpApache implements ClienteHttpDestino {
         }
         if (handshake(e)) {
             return erro(chamada, "falha de handshake", certificado, e);
+        }
+        if (causa(e, SSLException.class)) {
+            return erro(chamada, "falha de tls", certificado, e);
         }
         return erro(chamada, "falha na chamada", certificado, e);
     }

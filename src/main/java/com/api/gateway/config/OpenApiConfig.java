@@ -14,6 +14,6 @@ public class OpenApiConfig {
                 .title("gateway-spd")
                 .description("Redirecionamento de fluxo do Maker, execucao de procedure e chamada HTTP com fila na base do Flow. "
                         + "Saude e versao em /actuator/health e /actuator/info.")
-                .version("1.0.2"));
+                .version("1.0.3"));
     }
 }

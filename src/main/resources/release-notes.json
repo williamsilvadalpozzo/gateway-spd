@@ -4,6 +4,15 @@
   "description": "Historico de versoes do redirecionamento de fluxo, procedure e chamada HTTP.",
   "releases": [
     {
+      "version": "1.0.3",
+      "date": "2026-10-21",
+      "summary": "A chamada HTTPS usa TLS 1.2 para o destino responder.",
+      "changes": [
+        "O cliente HTTP limita a conexao a TLS 1.2. No TLS 1.3 o Java 8 lia a resposta do ADN e falhava com Tag mismatch.",
+        "Falha de TLS na leitura da resposta fica registrada como falha de tls, com a cadeia da excecao."
+      ]
+    },
+    {
       "version": "1.0.2",
       "date": "2026-10-21",
       "summary": "A fila HTTP fica na base do Flow e a falha passa a explicar a causa.",
