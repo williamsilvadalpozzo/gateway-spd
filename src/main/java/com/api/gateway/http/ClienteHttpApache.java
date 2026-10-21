@@ -10,12 +10,9 @@ import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.UnknownHostException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
@@ -62,36 +59,40 @@ public class ClienteHttpApache implements ClienteHttpDestino {
             }
             return umaVez(chamada, null);
         } catch (FalhaCertificadoException e) {
-            return ResultadoChamada.erro(e.getMessage(), null);
-        } catch (RuntimeException e) {
-            logger.warn("Falha na chamada HTTP id={} erro={}", Long.valueOf(chamada.getId()), e.getClass().getSimpleName());
-            return ResultadoChamada.erro("falha na chamada: " + detalhe(e), null);
+            return erro(chamada, "falha de certificado", null, e);
+        } catch (Throwable e) {
+            return erro(chamada, "falha interna", null, e);
         }
     }
 
     private ResultadoChamada comCertificado(ChamadaHttp chamada) {
         if (!certificados.pastaConfigurada()) {
-            return ResultadoChamada.erro("pasta de certificados nao configurada", null);
+            return erro(chamada, "pasta de certificados nao configurada", null, null);
         }
         if (!new File(certificados.pasta()).isDirectory()) {
-            return ResultadoChamada.erro("pasta de certificados nao encontrada", null);
+            return erro(chamada, "pasta de certificados nao encontrada path=" + certificados.pasta(), null, null);
         }
         List<File> arquivos = certificados.listar();
         if (arquivos.isEmpty()) {
-            return ResultadoChamada.erro("nenhum certificado encontrado na pasta", null);
+            return erro(chamada, "nenhum certificado .pfx ou .p12 na pasta path=" + certificados.pasta(), null, null);
         }
-        int inicio = (int) Math.floorMod(chamada.getId(), arquivos.size());
+        int inicio = (int) Math.floorMod(chamada.getId(), (long) arquivos.size());
+        StringBuilder tentativas = new StringBuilder();
         ResultadoChamada ultimo = null;
         for (int i = 0; i < arquivos.size(); i++) {
             File arquivo = arquivos.get((inicio + i) % arquivos.size());
             try {
                 return umaVez(chamada, arquivo);
             } catch (FalhaCertificadoException e) {
-                logger.warn("Handshake falhou id={} certificado={}", Long.valueOf(chamada.getId()), arquivo.getName());
-                ultimo = ResultadoChamada.erro(e.getMessage(), arquivo.getName());
+                ultimo = erro(chamada, e.getMessage(), arquivo.getName(), e);
+                if (tentativas.length() > 0) {
+                    tentativas.append(" || ");
+                }
+                tentativas.append(ultimo.getMensagem());
             }
         }
-        return ultimo;
+        String mensagem = tentativas.length() <= 4000 ? tentativas.toString() : tentativas.substring(0, 4000);
+        return ResultadoChamada.erro(mensagem, ultimo.getCertificadoArquivo());
     }
 
     private ResultadoChamada umaVez(ChamadaHttp chamada, File certificado) {
@@ -107,7 +108,7 @@ public class ClienteHttpApache implements ClienteHttpDestino {
             throw e;
         } catch (IOException e) {
             if (certificado != null && handshake(e)) {
-                throw new FalhaCertificadoException("falha de handshake: " + detalhe(e), e);
+                throw new FalhaCertificadoException("falha de handshake", e);
             }
             return classificar(chamada, e, nome);
         }
@@ -128,8 +129,12 @@ public class ClienteHttpApache implements ClienteHttpDestino {
                 try {
                     RespostaLida lida = ler(response);
                     if (lida.timeout) {
+                        String mensagem = DiagnosticoErro.comContexto(
+                                "tempo limite de " + chamada.getTimeoutSegundos() + " segundos",
+                                chamada, nomeCertificado, lida.causa);
+                        logger.warn("Requisicao HTTP id={} {}", Long.valueOf(chamada.getId()), mensagem, lida.causa);
                         return ResultadoChamada.timeout(Integer.valueOf(lida.httpStatus), lida.corpo, lida.contentType,
-                                "tempo limite de " + chamada.getTimeoutSegundos() + " segundos", nomeCertificado);
+                                mensagem, nomeCertificado);
                     }
                     if (restantes > 0 && redireciona(lida.httpStatus)) {
                         String location = header(lida.headers, "Location");
@@ -150,6 +155,12 @@ public class ClienteHttpApache implements ClienteHttpDestino {
                     }
                     String mensagem = lida.httpStatus >= 400
                             ? mensagemHttp(lida.httpStatus, lida.contentType, lida.corpo) : null;
+                    if (lida.httpStatus >= 400) {
+                        logger.warn("Requisicao HTTP id={} destino HTTP {} {} corpo={}",
+                                Long.valueOf(chamada.getId()), Integer.valueOf(lida.httpStatus),
+                                DiagnosticoErro.comContexto("HTTP " + lida.httpStatus, chamada, nomeCertificado, null),
+                                limitar(mensagem, 500));
+                    }
                     return ResultadoChamada.finalizado(lida.httpStatus, lida.corpo, lida.contentType, lida.charset,
                             lida.headers, mensagem, nomeCertificado);
                 } finally {
@@ -237,12 +248,14 @@ public class ClienteHttpApache implements ClienteHttpDestino {
         }
         byte[] corpo = null;
         boolean timeout = false;
+        Throwable causaTimeout = null;
         if (response.getEntity() != null) {
             InputStream entrada = response.getEntity().getContent();
             try {
                 Leitura leitura = lerBytes(entrada);
                 corpo = leitura.bytes;
                 timeout = leitura.timeout;
+                causaTimeout = leitura.causa;
             } finally {
                 entrada.close();
             }
@@ -250,10 +263,11 @@ public class ClienteHttpApache implements ClienteHttpDestino {
         RespostaLida lida = new RespostaLida();
         lida.httpStatus = status;
         lida.contentType = limitar(contentType, 255);
-        lida.charset = charsetDe(contentType);
+        lida.charset = TextoResposta.charsetDe(contentType);
         lida.headers = headers;
         lida.corpo = corpo;
         lida.timeout = timeout;
+        lida.causa = causaTimeout;
         return lida;
     }
 
@@ -265,28 +279,44 @@ public class ClienteHttpApache implements ClienteHttpDestino {
             while ((lido = entrada.read(buffer)) >= 0) {
                 saida.write(buffer, 0, lido);
             }
-            return new Leitura(saida.toByteArray(), false);
+            return new Leitura(saida.toByteArray(), false, null);
         } catch (SocketTimeoutException e) {
-            return new Leitura(saida.toByteArray(), true);
+            return new Leitura(saida.toByteArray(), true, e);
         }
     }
 
     private ResultadoChamada classificar(ChamadaHttp chamada, IOException e, String certificado) {
         if (timeout(e)) {
-            return ResultadoChamada.timeout(null, null, null,
-                    "tempo limite de " + chamada.getTimeoutSegundos() + " segundos", certificado);
+            return timeout(chamada, certificado, e);
         }
         if (causa(e, UnknownHostException.class)) {
-            return ResultadoChamada.erro("falha de DNS", certificado);
+            return erro(chamada, "falha de DNS", certificado, e);
         }
         if (causa(e, ConnectException.class) || causa(e, NoRouteToHostException.class)) {
-            return ResultadoChamada.erro("falha de conexao", certificado);
+            return erro(chamada, "falha de conexao", certificado, e);
         }
         if (handshake(e)) {
-            return ResultadoChamada.erro("falha de handshake: " + detalhe(e), certificado);
+            return erro(chamada, "falha de handshake", certificado, e);
         }
-        logger.warn("Falha na chamada HTTP id={} erro={}", Long.valueOf(chamada.getId()), e.getClass().getSimpleName());
-        return ResultadoChamada.erro("falha na chamada: " + detalhe(e), certificado);
+        return erro(chamada, "falha na chamada", certificado, e);
+    }
+
+    private ResultadoChamada timeout(ChamadaHttp chamada, String certificado, Throwable causa) {
+        String mensagem = DiagnosticoErro.comContexto(
+                "tempo limite de " + chamada.getTimeoutSegundos() + " segundos", chamada, certificado, causa);
+        logger.warn("Requisicao HTTP id={} {}", Long.valueOf(chamada.getId()), mensagem, causa);
+        return ResultadoChamada.timeout(null, null, null, mensagem, certificado);
+    }
+
+    private ResultadoChamada erro(ChamadaHttp chamada, String resumo, String certificado, Throwable causa) {
+        String mensagem = DiagnosticoErro.comContexto(resumo, chamada, certificado, causa);
+        if (causa == null || causa instanceof FalhaCertificadoException || resumo.startsWith("falha de")
+                || resumo.startsWith("pasta ") || resumo.startsWith("nenhum certificado")) {
+            logger.warn("Requisicao HTTP id={} {}", Long.valueOf(chamada.getId()), mensagem, causa);
+        } else {
+            logger.error("Requisicao HTTP id={} {}", Long.valueOf(chamada.getId()), mensagem, causa);
+        }
+        return ResultadoChamada.erro(mensagem, certificado);
     }
 
     private boolean redireciona(int status) {
@@ -328,50 +358,14 @@ public class ClienteHttpApache implements ClienteHttpDestino {
     }
 
     private String mensagemHttp(int status, String contentType, byte[] corpo) {
-        if (corpo != null && corpo.length > 0 && textual(contentType)) {
-            String texto = new String(corpo, charset(contentType)).trim();
+        String texto = TextoResposta.comoTexto(corpo, contentType, null);
+        if (texto != null) {
+            texto = texto.trim();
             if (!texto.isEmpty()) {
                 return limitar(texto, 4000);
             }
         }
         return "HTTP " + status;
-    }
-
-    private boolean textual(String contentType) {
-        if (contentType == null) {
-            return true;
-        }
-        String tipo = contentType.toLowerCase(Locale.ROOT);
-        return tipo.contains("json") || tipo.contains("xml") || tipo.contains("text")
-                || tipo.contains("html") || tipo.contains("javascript") || tipo.contains("yaml")
-                || tipo.contains("csv");
-    }
-
-    private Charset charset(String contentType) {
-        String nome = charsetDe(contentType);
-        if (nome == null) {
-            return StandardCharsets.UTF_8;
-        }
-        try {
-            return Charset.forName(nome);
-        } catch (Exception e) {
-            return StandardCharsets.UTF_8;
-        }
-    }
-
-    private String charsetDe(String contentType) {
-        if (contentType == null) {
-            return null;
-        }
-        String[] partes = contentType.split(";");
-        for (int i = 1; i < partes.length; i++) {
-            String parte = partes[i].trim();
-            if (parte.toLowerCase(Locale.ROOT).startsWith("charset=")) {
-                String charset = parte.substring("charset=".length()).trim().replace("\"", "");
-                return limitar(charset, 40);
-            }
-        }
-        return null;
     }
 
     private boolean timeout(Throwable e) {
@@ -394,19 +388,6 @@ public class ClienteHttpApache implements ClienteHttpDestino {
         return false;
     }
 
-    private String detalhe(Throwable e) {
-        String msg = e.getMessage();
-        if (msg == null || msg.trim().isEmpty()) {
-            msg = e.getClass().getSimpleName();
-        }
-        int consulta = msg.indexOf('?');
-        if (consulta >= 0) {
-            msg = msg.substring(0, consulta);
-        }
-        msg = msg.replace('\r', ' ').replace('\n', ' ');
-        return limitar(msg, 500);
-    }
-
     private String limitar(String texto, int maximo) {
         if (texto == null) {
             return null;
@@ -422,15 +403,18 @@ public class ClienteHttpApache implements ClienteHttpDestino {
         private List<ParNomeValor> headers;
         private byte[] corpo;
         private boolean timeout;
+        private Throwable causa;
     }
 
     private static final class Leitura {
         private final byte[] bytes;
         private final boolean timeout;
+        private final Throwable causa;
 
-        private Leitura(byte[] bytes, boolean timeout) {
+        private Leitura(byte[] bytes, boolean timeout, Throwable causa) {
             this.bytes = bytes;
             this.timeout = timeout;
+            this.causa = causa;
         }
     }
 

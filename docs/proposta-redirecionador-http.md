@@ -2,7 +2,7 @@
 
 ## Estado
 
-Definicao fechada e implementada. A tabela e criada por sql/GATEWAY_REQUISICAO_HTTP.sql.
+Definicao fechada e implementada. A aplicacao conecta na base do Flow (OutSystems). A tabela e criada la, com sql/GATEWAY_REQUISICAO_HTTP.sql, no schema do usuario da conexao. A aplicacao nao cria a tabela.
 
 ## Objetivo
 
@@ -18,7 +18,7 @@ por uma fila persistente.
 
 - cada chamada informa se o processamento e assincrono ou sincrono;
 - resposta da chamada assincrona contendo o ID da requisicao;
-- fila persistida no Oracle;
+- fila persistida na base do Flow (OutSystems);
 - processamento FIFO, da requisicao mais antiga para a mais nova;
 - varias instancias podem consumir a fila ao mesmo tempo;
 - cada item e reivindicado e marcado `EM_EXECUCAO` antes da chamada;
@@ -84,8 +84,15 @@ SELECT ID
   FROM GATEWAY_REQUISICAO_HTTP
  WHERE STATUS = 'PENDENTE'
    AND ASSINCRONO = 1
- ORDER BY ID
- FETCH FIRST 1 ROW ONLY
+   AND ROWID = (
+         SELECT RID FROM (
+           SELECT ROWID AS RID
+             FROM GATEWAY_REQUISICAO_HTTP
+            WHERE STATUS = 'PENDENTE'
+              AND ASSINCRONO = 1
+            ORDER BY ID
+         ) WHERE ROWNUM = 1
+       )
    FOR UPDATE SKIP LOCKED;
 ```
 
@@ -111,7 +118,7 @@ Se ela sair de operacao, a linha permanece `EM_EXECUCAO` sem ninguem processando
 A cada 5 minutos, as instancias ativas procuram requisicoes `EM_EXECUCAO` que
 atingiram o tempo limite informado em `timeoutSegundos`, contado de
 `INICIADO_EM`. Cada uma encontrada passa a `ERRO`, com a mensagem
-`execucao interrompida na instancia <nome>`. Nao ha reenvio. Uma nova chamada
+`execucao interrompida na instancia <nome> apos <timeoutSegundos> segundos sem conclusao`. Nao ha reenvio. Uma nova chamada
 precisa ser registrada pelo requisitante.
 
 ## Contrato inicial
@@ -218,7 +225,10 @@ Transmite o BLOB usando o `Content-Type` recebido do destino. Para respostas sem
 - `HEADERS_RESPOSTA_JSON` — `CLOB`;
 - `CONTENT_TYPE_RESPOSTA`;
 - `CHARSET_RESPOSTA`;
-- `CORPO_RESPOSTA` — `BLOB`;
+- `CORPO_RESPOSTA` — `BLOB` com os bytes originais, inclusive zip;
+- `CORPO_RESPOSTA_TEXTO` — `CLOB` com o mesmo conteudo quando a resposta e texto
+  (JSON, XML, texto, HTML). Fica nulo em resposta binaria. A procedure le esta
+  coluna. O download continua saindo do `BLOB`;
 - `TAMANHO_RESPOSTA`;
 - `MENSAGEM_ERRO` — `CLOB`;
 - `CRIADO_EM`;
@@ -240,15 +250,18 @@ O `ID`, crescente, define a ordem FIFO. A selecao usa bloqueio de linha e
 
 Todo resultado consultavel fica na tabela:
 
-- destino respondeu 2xx ou 3xx: `FINALIZADO`, `HTTP_STATUS` e `CORPO_RESPOSTA`;
-- destino respondeu 4xx ou 5xx: `FINALIZADO`, `HTTP_STATUS`, `CORPO_RESPOSTA` e
-  `MENSAGEM_ERRO` com o motivo recebido;
+- destino respondeu 2xx ou 3xx: `FINALIZADO`, `HTTP_STATUS`, `CORPO_RESPOSTA` e,
+  se o corpo for texto, `CORPO_RESPOSTA_TEXTO`;
+- destino respondeu 4xx ou 5xx: `FINALIZADO`, `HTTP_STATUS`, `CORPO_RESPOSTA`,
+  `CORPO_RESPOSTA_TEXTO` quando o corpo for texto, e `MENSAGEM_ERRO` com o motivo
+  recebido;
 - timeout: `TIMEOUT`, `MENSAGEM_ERRO` e o corpo parcial quando existir;
 - DNS, conexao, TLS ou falha interna: `ERRO` e `MENSAGEM_ERRO`;
 - instancia interrompida: `ERRO`, instancia e mensagem de interrupcao.
 
-`GET /requisicoes-http/{id}` devolve status, HTTP status e mensagem de erro. O
-corpo, inclusive o corpo de erro do destino, continua no endpoint de download.
+`GET /requisicoes-http/{id}` devolve status, HTTP status e mensagem de erro. Se a
+chamada falhou ou o destino respondeu 4xx ou 5xx e o corpo for texto, esse texto
+vem no campo `corpo`. O download continua no endpoint de resposta.
 
 ## Certificado cliente
 

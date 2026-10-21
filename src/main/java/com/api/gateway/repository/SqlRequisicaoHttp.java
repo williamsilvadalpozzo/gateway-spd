@@ -7,7 +7,11 @@ public final class SqlRequisicaoHttp {
     public static final String REIVINDICAR =
             "SELECT ID FROM GATEWAY_REQUISICAO_HTTP "
                     + "WHERE STATUS = 'PENDENTE' AND ASSINCRONO = 1 "
-                    + "ORDER BY ID FETCH FIRST 1 ROW ONLY FOR UPDATE SKIP LOCKED";
+                    + "AND ROWID = (SELECT RID FROM ("
+                    + "SELECT ROWID AS RID FROM GATEWAY_REQUISICAO_HTTP "
+                    + "WHERE STATUS = 'PENDENTE' AND ASSINCRONO = 1 "
+                    + "ORDER BY ID) WHERE ROWNUM = 1) "
+                    + "FOR UPDATE SKIP LOCKED";
 
     public static final String MARCAR_EXECUCAO =
             "UPDATE GATEWAY_REQUISICAO_HTTP "
@@ -17,7 +21,8 @@ public final class SqlRequisicaoHttp {
     public static final String MARCAR_INTERROMPIDAS =
             "UPDATE GATEWAY_REQUISICAO_HTTP "
                     + "SET STATUS = 'ERRO', "
-                    + "MENSAGEM_ERRO = '" + PREFIXO_INTERROMPIDA + "' || NVL(INSTANCIA, 'desconhecida'), "
+                    + "MENSAGEM_ERRO = '" + PREFIXO_INTERROMPIDA + "' || NVL(INSTANCIA, 'desconhecida') "
+                    + "|| ' apos ' || TIMEOUT_SEGUNDOS || ' segundos sem conclusao', "
                     + "FINALIZADO_EM = ? "
                     + "WHERE STATUS = 'EM_EXECUCAO' "
                     + "AND INICIADO_EM IS NOT NULL "

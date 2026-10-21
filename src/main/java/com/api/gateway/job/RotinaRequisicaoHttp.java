@@ -1,6 +1,7 @@
 package com.api.gateway.job;
 
 import com.api.gateway.http.CertificadosCliente;
+import com.api.gateway.http.DiagnosticoErro;
 import com.api.gateway.service.NomeInstancia;
 import com.api.gateway.service.RequisicaoHttpService;
 import java.io.File;
@@ -38,7 +39,11 @@ public class RotinaRequisicaoHttp implements ApplicationRunner {
         }
         List<File> arquivos = certificados.listar();
         if (!new File(certificados.pasta()).isDirectory()) {
-            logger.warn("Pasta de certificados nao encontrada");
+            logger.warn("Pasta de certificados nao encontrada path={}", certificados.pasta());
+            return;
+        }
+        if (arquivos.isEmpty()) {
+            logger.warn("Nenhum certificado .pfx ou .p12 na pasta path={}", certificados.pasta());
             return;
         }
         StringBuilder nomes = new StringBuilder();
@@ -48,8 +53,12 @@ public class RotinaRequisicaoHttp implements ApplicationRunner {
             }
             nomes.append(arquivos.get(i).getName());
         }
-        logger.info("Certificados encontrados: {}", nomes.toString());
+        logger.info("Certificados encontrados path={} arquivos={}", certificados.pasta(), nomes.toString());
     }
+
+    private String ultimaFalhaFila;
+    private String ultimaFalhaPulso;
+    private String ultimaFalhaVarredura;
 
     @Scheduled(fixedDelayString = "${gateway.http.fila-intervalo-ms:1000}",
             initialDelayString = "${gateway.http.fila-intervalo-ms:1000}")
@@ -58,12 +67,11 @@ public class RotinaRequisicaoHttp implements ApplicationRunner {
             while (service.consumirUm()) {
                 // segue enquanto houver pendente nesta instancia
             }
+            ultimaFalhaFila = null;
         } catch (DataAccessException e) {
-            String mensagem = e.getMostSpecificCause() == null ? e.getClass().getSimpleName()
-                    : e.getMostSpecificCause().getMessage();
-            logger.warn("Fila HTTP indisponivel: {}", mensagem);
+            registrar("Fila HTTP", "reivindicar", e, true);
         } catch (RuntimeException e) {
-            logger.error("Falha ao consumir a fila HTTP", e);
+            logger.error("Falha ao consumir a fila HTTP {}", DiagnosticoErro.cadeia(e), e);
         }
     }
 
@@ -72,10 +80,11 @@ public class RotinaRequisicaoHttp implements ApplicationRunner {
     public void pulsar() {
         try {
             service.pulsar();
+            ultimaFalhaPulso = null;
         } catch (DataAccessException e) {
-            logger.warn("Heartbeat HTTP indisponivel");
+            registrar("Heartbeat HTTP", "pulsar", e, false);
         } catch (RuntimeException e) {
-            logger.error("Falha no heartbeat das requisicoes HTTP", e);
+            logger.error("Falha no heartbeat das requisicoes HTTP {}", DiagnosticoErro.cadeia(e), e);
         }
     }
 
@@ -84,13 +93,33 @@ public class RotinaRequisicaoHttp implements ApplicationRunner {
     public void varrer() {
         try {
             int marcadas = service.marcarInterrompidas();
+            ultimaFalhaVarredura = null;
             if (marcadas > 0) {
-                logger.warn("{} requisicoes HTTP marcadas como interrompidas", Integer.valueOf(marcadas));
+                logger.warn("{} requisicoes HTTP marcadas como interrompidas por timeout sem conclusao",
+                        Integer.valueOf(marcadas));
             }
         } catch (DataAccessException e) {
-            logger.warn("Varredura HTTP indisponivel");
+            registrar("Varredura HTTP", "interromper", e, false);
         } catch (RuntimeException e) {
-            logger.error("Falha na varredura de requisicoes HTTP", e);
+            logger.error("Falha na varredura de requisicoes HTTP {}", DiagnosticoErro.cadeia(e), e);
         }
+    }
+
+    private void registrar(String rotina, String operacao, DataAccessException e, boolean fila) {
+        String detalhe = DiagnosticoErro.cadeia(e.getMostSpecificCause() == null ? e : e.getMostSpecificCause());
+        String chave = operacao + " " + detalhe;
+        String anterior = fila ? ultimaFalhaFila : operacao.startsWith("pulsar") ? ultimaFalhaPulso : ultimaFalhaVarredura;
+        if (chave.equals(anterior)) {
+            logger.warn("{} ainda indisponivel operacao={} {}", rotina, operacao, detalhe);
+            return;
+        }
+        if (fila) {
+            ultimaFalhaFila = chave;
+        } else if ("pulsar".equals(operacao)) {
+            ultimaFalhaPulso = chave;
+        } else {
+            ultimaFalhaVarredura = chave;
+        }
+        logger.error("{} indisponivel operacao={} {}", rotina, operacao, detalhe, e);
     }
 }

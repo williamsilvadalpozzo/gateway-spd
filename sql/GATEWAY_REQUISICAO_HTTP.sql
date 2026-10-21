@@ -1,5 +1,10 @@
 -- Fila persistente do redirecionador HTTP.
--- Oracle 12c ou superior, por causa de FETCH FIRST e SKIP LOCKED no consumo.
+-- Executar na base do Flow (OutSystems), no schema do usuario da conexao.
+-- A aplicacao nao cria a tabela. Os nomes nao levam schema.
+-- O consumo usa FOR UPDATE SKIP LOCKED. Nao usar FETCH FIRST junto de FOR UPDATE:
+-- o Oracle responde ORA-02014.
+-- Se a tabela ja existir sem o texto da resposta:
+-- ALTER TABLE GATEWAY_REQUISICAO_HTTP ADD CORPO_RESPOSTA_TEXTO CLOB;
 
 CREATE SEQUENCE SQ_GATEWAY_REQUISICAO_HTTP
     START WITH 1
@@ -33,6 +38,7 @@ CREATE TABLE GATEWAY_REQUISICAO_HTTP (
     CONTENT_TYPE_RESPOSTA   VARCHAR2(255 CHAR),
     CHARSET_RESPOSTA        VARCHAR2(40 CHAR),
     CORPO_RESPOSTA          BLOB,
+    CORPO_RESPOSTA_TEXTO    CLOB,
     TAMANHO_RESPOSTA        NUMBER,
     MENSAGEM_ERRO           CLOB,
     CRIADO_EM               TIMESTAMP(6)      NOT NULL,

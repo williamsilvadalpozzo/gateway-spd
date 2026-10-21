@@ -5,6 +5,7 @@ import com.api.gateway.domain.StatusRequisicaoHttp;
 import com.api.gateway.domain.TipoCorpoHttp;
 import com.api.gateway.domain.TipoRetornoHttp;
 import com.api.gateway.http.ResultadoChamada;
+import com.api.gateway.http.TextoResposta;
 import com.api.gateway.service.CorpoResposta;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -34,8 +35,10 @@ public class RequisicaoHttpRepository {
     private static final String RESUMO =
             "SELECT ID, CHAVE_IDEMPOTENCIA, ASSINCRONO, PROCESSO, LOTE, STATUS, INSTANCIA, "
                     + "METODO, URL, TIPO_CORPO, TIPO_RETORNO, TIMEOUT_SEGUNDOS, CERTIFICADO_ARQUIVO, "
-                    + "USAR_CERTIFICADO, HTTP_STATUS, CONTENT_TYPE_RESPOSTA, TAMANHO_RESPOSTA, "
-                    + "MENSAGEM_ERRO, CRIADO_EM, INICIADO_EM, FINALIZADO_EM "
+                    + "USAR_CERTIFICADO, HTTP_STATUS, CONTENT_TYPE_RESPOSTA, CHARSET_RESPOSTA, "
+                    + "TAMANHO_RESPOSTA, MENSAGEM_ERRO, CRIADO_EM, INICIADO_EM, FINALIZADO_EM, "
+                    + "CASE WHEN STATUS IN ('ERRO', 'TIMEOUT') OR NVL(HTTP_STATUS, 0) >= 400 "
+                    + "THEN CORPO_RESPOSTA END AS CORPO_ERRO "
                     + "FROM GATEWAY_REQUISICAO_HTTP ";
 
     private static final String EXECUCAO =
@@ -47,7 +50,8 @@ public class RequisicaoHttpRepository {
 
     private static final String CONCLUIR =
             "UPDATE GATEWAY_REQUISICAO_HTTP SET STATUS = ?, HTTP_STATUS = ?, HEADERS_RESPOSTA_JSON = ?, "
-                    + "CONTENT_TYPE_RESPOSTA = ?, CHARSET_RESPOSTA = ?, CORPO_RESPOSTA = ?, TAMANHO_RESPOSTA = ?, "
+                    + "CONTENT_TYPE_RESPOSTA = ?, CHARSET_RESPOSTA = ?, CORPO_RESPOSTA = ?, "
+                    + "CORPO_RESPOSTA_TEXTO = ?, TAMANHO_RESPOSTA = ?, "
                     + "MENSAGEM_ERRO = ?, CERTIFICADO_ARQUIVO = ?, FINALIZADO_EM = ? "
                     + "WHERE ID = ? AND STATUS = 'EM_EXECUCAO'";
 
@@ -160,8 +164,10 @@ public class RequisicaoHttpRepository {
     @Transactional
     public boolean concluir(long id, ResultadoChamada resultado, String headersJson, Instant finalizadoEm) {
         Long tamanho = resultado.getCorpo() == null ? null : Long.valueOf(resultado.getCorpo().length);
+        String texto = TextoResposta.comoTexto(
+                resultado.getCorpo(), resultado.getContentType(), resultado.getCharset());
         int atualizados = jdbc.update(CONCLUIR,
-                new ArgumentosConclusao(resultado, headersJson, tamanho, finalizadoEm, id));
+                new ArgumentosConclusao(resultado, headersJson, texto, tamanho, finalizadoEm, id));
         return atualizados == 1;
     }
 
@@ -200,6 +206,7 @@ public class RequisicaoHttpRepository {
                 requisicao.setContentTypeResposta(rs.getString("CONTENT_TYPE_RESPOSTA"));
                 requisicao.setTamanhoResposta(longo(rs, "TAMANHO_RESPOSTA"));
                 requisicao.setMensagemErro(rs.getString("MENSAGEM_ERRO"));
+                requisicao.setCorpoErro(textoErro(rs));
                 requisicao.setFinalizadoEm(instante(rs, "FINALIZADO_EM"));
                 return requisicao;
             }
@@ -239,6 +246,16 @@ public class RequisicaoHttpRepository {
         requisicao.setCriadoEm(instante(rs, "CRIADO_EM"));
         requisicao.setIniciadoEm(instante(rs, "INICIADO_EM"));
         return requisicao;
+    }
+
+    private String textoErro(ResultSet rs) throws SQLException {
+        String texto = TextoResposta.comoTexto(
+                rs.getBytes("CORPO_ERRO"), rs.getString("CONTENT_TYPE_RESPOSTA"), rs.getString("CHARSET_RESPOSTA"));
+        if (texto == null) {
+            return null;
+        }
+        texto = texto.trim();
+        return texto.isEmpty() ? null : texto;
     }
 
     private Integer numero(ResultSet rs, String coluna) throws SQLException {
@@ -291,14 +308,16 @@ public class RequisicaoHttpRepository {
     private static final class ArgumentosConclusao implements org.springframework.jdbc.core.PreparedStatementSetter {
         private final ResultadoChamada resultado;
         private final String headersJson;
+        private final String corpoTexto;
         private final Long tamanho;
         private final Instant finalizadoEm;
         private final long id;
 
-        private ArgumentosConclusao(ResultadoChamada resultado, String headersJson, Long tamanho,
-                Instant finalizadoEm, long id) {
+        private ArgumentosConclusao(ResultadoChamada resultado, String headersJson, String corpoTexto,
+                Long tamanho, Instant finalizadoEm, long id) {
             this.resultado = resultado;
             this.headersJson = headersJson;
+            this.corpoTexto = corpoTexto;
             this.tamanho = tamanho;
             this.finalizadoEm = finalizadoEm;
             this.id = id;
@@ -332,23 +351,28 @@ public class RequisicaoHttpRepository {
             } else {
                 ps.setBytes(6, resultado.getCorpo());
             }
-            if (tamanho == null) {
-                ps.setNull(7, Types.NUMERIC);
+            if (corpoTexto == null) {
+                ps.setNull(7, Types.CLOB);
             } else {
-                ps.setLong(7, tamanho.longValue());
+                ps.setString(7, corpoTexto);
+            }
+            if (tamanho == null) {
+                ps.setNull(8, Types.NUMERIC);
+            } else {
+                ps.setLong(8, tamanho.longValue());
             }
             if (resultado.getMensagem() == null) {
-                ps.setNull(8, Types.CLOB);
+                ps.setNull(9, Types.CLOB);
             } else {
-                ps.setString(8, resultado.getMensagem());
+                ps.setString(9, resultado.getMensagem());
             }
             if (resultado.getCertificadoArquivo() == null) {
-                ps.setNull(9, Types.VARCHAR);
+                ps.setNull(10, Types.VARCHAR);
             } else {
-                ps.setString(9, resultado.getCertificadoArquivo());
+                ps.setString(10, resultado.getCertificadoArquivo());
             }
-            ps.setTimestamp(10, Timestamp.from(finalizadoEm));
-            ps.setLong(11, id);
+            ps.setTimestamp(11, Timestamp.from(finalizadoEm));
+            ps.setLong(12, id);
         }
     }
 }

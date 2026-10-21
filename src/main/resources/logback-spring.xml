@@ -10,7 +10,7 @@
     <property name="LOG_FILE" value="${LOG_DIR}/gateway-spd.log"/>
 
     <property name="LOG_PATTERN"
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level ${APP_NAME} [%X{requestId:-}] %logger{40} - %msg%n"/>
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level ${APP_NAME} [%X{requestId:-}] %logger{40} - %msg%n%ex"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>

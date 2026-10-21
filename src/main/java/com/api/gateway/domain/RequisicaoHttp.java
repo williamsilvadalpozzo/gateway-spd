@@ -28,6 +28,7 @@ public class RequisicaoHttp {
     private String charsetResposta;
     private Long tamanhoResposta;
     private String mensagemErro;
+    private String corpoErro;
     private Instant criadoEm;
     private Instant iniciadoEm;
     private Instant finalizadoEm;
@@ -223,6 +224,14 @@ public class RequisicaoHttp {
 
     public void setMensagemErro(String mensagemErro) {
         this.mensagemErro = mensagemErro;
+    }
+
+    public String getCorpoErro() {
+        return corpoErro;
+    }
+
+    public void setCorpoErro(String corpoErro) {
+        this.corpoErro = corpoErro;
     }
 
     public Instant getCriadoEm() {

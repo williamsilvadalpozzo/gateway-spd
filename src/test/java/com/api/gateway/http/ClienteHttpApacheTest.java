@@ -127,7 +127,10 @@ class ClienteHttpApacheTest {
             ResultadoChamada resultado = cliente(new GatewayProperties()).executar(chamada);
 
             assertEquals(StatusRequisicaoHttp.TIMEOUT, resultado.getStatus());
-            assertEquals("tempo limite de 1 segundos", resultado.getMensagem());
+            assertTrue(resultado.getMensagem().startsWith("tempo limite de 1 segundos"));
+            assertTrue(resultado.getMensagem().contains("GET http://127.0.0.1:" + porta + "/lento"));
+            assertTrue(resultado.getMensagem().contains("timeout 1s"));
+            assertTrue(resultado.getMensagem().contains("SocketTimeoutException"));
         } finally {
             server.stop(0);
         }
@@ -161,7 +164,33 @@ class ClienteHttpApacheTest {
         ResultadoChamada resultado = cliente(new GatewayProperties()).executar(chamada);
 
         assertEquals(StatusRequisicaoHttp.ERRO, resultado.getStatus());
-        assertEquals("falha de conexao", resultado.getMensagem());
+        assertTrue(resultado.getMensagem().startsWith("falha de conexao"));
+        assertTrue(resultado.getMensagem().contains("GET http://127.0.0.1:1/nada"));
+        assertTrue(resultado.getMensagem().contains("timeout 2s"));
+        assertTrue(resultado.getMensagem().contains("certificado nenhum"));
+        assertTrue(resultado.getMensagem().contains("ConnectException"));
+    }
+
+    @Test
+    void pastaInexistenteDescreveOCaminho() {
+        GatewayProperties properties = new GatewayProperties();
+        properties.getCertificados().setPath("C:/certificados/Dal Pozzo_CTB.pfx");
+        ChamadaHttp chamada = new ChamadaHttp(8L, "GET",
+                "https://adn.nfse.gov.br/contribuintes/DFe/1?cnpjConsulta=80213705000126",
+                Collections.singletonList(new ParNomeValor("cnpjConsulta", "80213705000126")),
+                null, null, null, 120, true, Collections.singletonList("pem"), 0);
+
+        ResultadoChamada resultado = cliente(properties).executar(chamada);
+
+        assertEquals(StatusRequisicaoHttp.ERRO, resultado.getStatus());
+        String mensagem = resultado.getMensagem();
+        assertTrue(mensagem.startsWith("pasta de certificados nao encontrada path=C:/certificados/Dal Pozzo_CTB.pfx"));
+        assertTrue(mensagem.contains("GET https://adn.nfse.gov.br/contribuintes/DFe/1"));
+        assertTrue(!mensagem.contains("cnpjConsulta=80213705000126"));
+        assertTrue(mensagem.contains("timeout 120s"));
+        assertTrue(mensagem.contains("usarCertificado true"));
+        assertTrue(mensagem.contains("pems 1"));
+        assertTrue(mensagem.contains("parametros cnpjConsulta"));
     }
 
     private ClienteHttpApache cliente(GatewayProperties properties) {

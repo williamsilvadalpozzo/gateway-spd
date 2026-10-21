@@ -56,7 +56,7 @@ public class RequisicaoHttpController {
 
     @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Consulta o estado da requisicao",
-            description = "Devolve status, HTTP status, tipo e tamanho. O corpo fica no endpoint de download.")
+            description = "Devolve status, HTTP status, tipo e tamanho. Se a chamada falhou ou o destino respondeu 4xx ou 5xx, o corpo texto do erro vem em corpo.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Estado da requisicao",
                     content = @Content(schema = @Schema(implementation = RequisicaoHttpResponse.class))),

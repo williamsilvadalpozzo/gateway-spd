@@ -4,6 +4,20 @@
   "description": "Historico de versoes do redirecionamento de fluxo, procedure e chamada HTTP.",
   "releases": [
     {
+      "version": "1.0.2",
+      "date": "2026-10-21",
+      "summary": "A fila HTTP fica na base do Flow e a falha passa a explicar a causa.",
+      "changes": [
+        "A conexao usa GATEWAY_FLOW_ORACLE_*, com fallback para DPZ_XML_ORACLE_*. A tabela continua sendo criada no schema do usuario da conexao.",
+        "Resposta textual tambem fica em CORPO_RESPOSTA_TEXTO. O BLOB guarda os bytes originais para o download.",
+        "ERRO, TIMEOUT e HTTP 4xx ou 5xx devolvem o corpo texto no campo corpo. Sucesso nao traz esse campo.",
+        "O balanceamento do certificado cliente usa a forma do floorMod compativel com Java 8.",
+        "O consumo da fila deixa de juntar FETCH FIRST com FOR UPDATE, o que o Oracle rejeitava com ORA-02014.",
+        "A mensagem de erro grava metodo, URL sem a consulta, timeout, certificado e a cadeia da excecao. O log do servidor inclui a pilha.",
+        "Execucao interrompida pela varredura informa a instancia e os segundos do timeout que se esgotaram."
+      ]
+    },
+    {
       "version": "1.0.1",
       "date": "2026-10-20",
       "summary": "Redirecionador HTTP generico com fila persistente no Oracle.",

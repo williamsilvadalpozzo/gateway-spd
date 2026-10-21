@@ -67,7 +67,24 @@ class RequisicaoHttpControllerTest {
                         .content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FINALIZADO"))
-                .andExpect(jsonPath("$.httpStatus").value(200));
+                .andExpect(jsonPath("$.httpStatus").value(200))
+                .andExpect(jsonPath("$.corpo").doesNotExist());
+    }
+
+    @Test
+    void devolveCorpoQuandoDestinoRespondeErro() throws Exception {
+        RequisicaoHttp requisicao = new RequisicaoHttp();
+        requisicao.setId(9L);
+        requisicao.setStatus(StatusRequisicaoHttp.FINALIZADO);
+        requisicao.setHttpStatus(Integer.valueOf(400));
+        requisicao.setMensagemErro("{\"erro\":\"cnpj\"}");
+        requisicao.setCorpoErro("{\"erro\":\"cnpj\"}");
+        when(service.consultar(9L)).thenReturn(requisicao);
+
+        mvc.perform(get("/requisicoes-http/9"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.httpStatus").value(400))
+                .andExpect(jsonPath("$.corpo").value("{\"erro\":\"cnpj\"}"));
     }
 
     @Test

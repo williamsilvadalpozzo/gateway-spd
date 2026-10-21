@@ -163,6 +163,40 @@ class RequisicaoHttpServiceTest {
         verify(cliente, never()).executar(any());
     }
 
+    @Test
+    void gravaFalhaInternaNoCampoDeErro() {
+        when(repository.proximoId()).thenReturn(13L);
+        RequisicaoHttp salva = new RequisicaoHttp();
+        salva.setId(13L);
+        salva.setStatus(StatusRequisicaoHttp.EM_EXECUCAO);
+        salva.setMetodo("GET");
+        salva.setUrl("https://adn.nfse.gov.br/contribuintes/DFe/1");
+        salva.setTimeoutSegundos(120);
+        salva.setUsarCertificado(true);
+        when(repository.buscarParaExecucao(13L)).thenReturn(Optional.of(salva));
+        when(cliente.executar(any())).thenThrow(new NoSuchMethodError("java.lang.Math.floorMod(JI)I"));
+        when(repository.concluir(anyLong(), any(ResultadoChamada.class), isNull(), any(Instant.class))).thenReturn(true);
+        when(repository.buscarResumo(13L)).thenReturn(Optional.of(salva));
+        CriarRequisicaoHttpRequest request = pedido(Boolean.FALSE);
+        request.setMetodo("GET");
+        request.setTipoCorpo("NENHUM");
+        request.setUsarCertificado(Boolean.TRUE);
+        request.setTimeoutSegundos(Integer.valueOf(120));
+
+        service.criar(request);
+
+        ArgumentCaptor<ResultadoChamada> captor = ArgumentCaptor.forClass(ResultadoChamada.class);
+        verify(repository).concluir(eq(13L), captor.capture(), isNull(), any(Instant.class));
+        assertEquals(StatusRequisicaoHttp.ERRO, captor.getValue().getStatus());
+        String mensagem = captor.getValue().getMensagem();
+        assertTrue(mensagem.startsWith("falha interna"));
+        assertTrue(mensagem.contains("GET https://adn.nfse.gov.br/contribuintes/DFe/1"));
+        assertTrue(mensagem.contains("timeout 120s"));
+        assertTrue(mensagem.contains("usarCertificado true"));
+        assertTrue(mensagem.contains("NoSuchMethodError"));
+        assertTrue(mensagem.contains("java.lang.Math.floorMod(JI)I"));
+    }
+
     private CriarRequisicaoHttpRequest pedido(Boolean assincrono) {
         CriarRequisicaoHttpRequest request = new CriarRequisicaoHttpRequest();
         request.setMetodo("POST");

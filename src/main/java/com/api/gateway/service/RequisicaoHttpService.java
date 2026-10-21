@@ -7,6 +7,7 @@ import com.api.gateway.dto.CriarRequisicaoHttpRequest;
 import com.api.gateway.dto.ParNomeValor;
 import com.api.gateway.http.ChamadaHttp;
 import com.api.gateway.http.ClienteHttpDestino;
+import com.api.gateway.http.DiagnosticoErro;
 import com.api.gateway.http.ResultadoChamada;
 import com.api.gateway.repository.RequisicaoHttpRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -109,20 +110,33 @@ public class RequisicaoHttpService {
             return;
         }
         execucoes.iniciar(id);
+        RequisicaoHttp requisicao = encontrada.get();
+        ChamadaHttp pedido = chamada(requisicao);
         try {
-            RequisicaoHttp requisicao = encontrada.get();
-            ResultadoChamada resultado = cliente.executar(chamada(requisicao));
+            ResultadoChamada resultado = cliente.executar(pedido);
             boolean gravou = repository.concluir(id, resultado, jsonHeaders(resultado), clock.instant());
             if (gravou) {
-                logger.info("Requisicao HTTP id={} concluida status={} http={}", Long.valueOf(id),
-                        resultado.getStatus(), resultado.getHttpStatus());
+                if (resultado.getStatus() == StatusRequisicaoHttp.ERRO
+                        || resultado.getStatus() == StatusRequisicaoHttp.TIMEOUT
+                        || (resultado.getHttpStatus() != null && resultado.getHttpStatus().intValue() >= 400)) {
+                    logger.warn("Requisicao HTTP id={} concluida status={} http={} certificado={} mensagem={}",
+                            Long.valueOf(id), resultado.getStatus(), resultado.getHttpStatus(),
+                            resultado.getCertificadoArquivo(), resultado.getMensagem());
+                } else {
+                    logger.info("Requisicao HTTP id={} concluida status={} http={}", Long.valueOf(id),
+                            resultado.getStatus(), resultado.getHttpStatus());
+                }
             } else {
                 logger.info("Requisicao HTTP id={} ja encerrada", Long.valueOf(id));
             }
-        } catch (RuntimeException e) {
-            logger.warn("Falha ao executar requisicao HTTP id={} erro={}", Long.valueOf(id),
-                    e.getClass().getSimpleName());
-            repository.concluir(id, ResultadoChamada.erro("falha na chamada", null), null, clock.instant());
+        } catch (Throwable erro) {
+            String mensagem = DiagnosticoErro.comContexto("falha interna", pedido, null, erro);
+            logger.error("Requisicao HTTP id={} {}", Long.valueOf(id), mensagem, erro);
+            try {
+                repository.concluir(id, ResultadoChamada.erro(mensagem, null), null, clock.instant());
+            } catch (RuntimeException gravacao) {
+                logger.error("Falha ao gravar o erro da requisicao HTTP id={}", Long.valueOf(id), gravacao);
+            }
         } finally {
             execucoes.encerrar(id);
         }

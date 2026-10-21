@@ -12,8 +12,8 @@ public class OpenApiConfig {
     public OpenAPI gatewayOpenAPI() {
         return new OpenAPI().info(new Info()
                 .title("gateway-spd")
-                .description("Redirecionamento de fluxo do Maker, execucao de procedure e chamada HTTP com fila no Oracle. "
+                .description("Redirecionamento de fluxo do Maker, execucao de procedure e chamada HTTP com fila na base do Flow. "
                         + "Saude e versao em /actuator/health e /actuator/info.")
-                .version("1.0.1"));
+                .version("1.0.2"));
     }
 }

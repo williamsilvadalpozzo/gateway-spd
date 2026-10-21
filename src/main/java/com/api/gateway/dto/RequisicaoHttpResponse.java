@@ -11,7 +11,7 @@ import java.time.ZoneOffset;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({
         "id", "status", "assincrono", "processo", "lote", "chaveIdempotencia",
-        "metodo", "url", "tipoRetorno", "httpStatus", "mensagem", "contentType",
+        "metodo", "url", "tipoRetorno", "httpStatus", "mensagem", "corpo", "contentType",
         "tamanho", "certificadoArquivo", "criadoEm", "iniciadoEm", "finalizadoEm"
 })
 @Schema(description = "Estado de uma requisicao HTTP")
@@ -28,6 +28,7 @@ public class RequisicaoHttpResponse {
     private String tipoRetorno;
     private Integer httpStatus;
     private String mensagem;
+    private String corpo;
     private String contentType;
     private Long tamanho;
     private String certificadoArquivo;
@@ -48,6 +49,7 @@ public class RequisicaoHttpResponse {
         resposta.tipoRetorno = requisicao.getTipoRetorno() == null ? null : requisicao.getTipoRetorno().name();
         resposta.httpStatus = requisicao.getHttpStatus();
         resposta.mensagem = requisicao.getMensagemErro();
+        resposta.corpo = requisicao.getCorpoErro();
         resposta.contentType = requisicao.getContentTypeResposta();
         resposta.tamanho = requisicao.getTamanhoResposta();
         resposta.certificadoArquivo = requisicao.getCertificadoArquivo();
@@ -103,6 +105,10 @@ public class RequisicaoHttpResponse {
 
     public String getMensagem() {
         return mensagem;
+    }
+
+    public String getCorpo() {
+        return corpo;
     }
 
     public String getContentType() {

@@ -1,6 +1,6 @@
 # gateway-spd
 
-Serviço de redirecionamento. O Maker pede a execução de um fluxo ou de uma procedure e recebe um token na hora. O OutSystems também pode descrever uma chamada HTTP: o gateway executa, grava o resultado no Oracle e devolve o id.
+Serviço de redirecionamento. O Maker pede a execução de um fluxo ou de uma procedure e recebe um token na hora. O OutSystems também pode descrever uma chamada HTTP: o gateway executa, grava o resultado na base do Flow e devolve o id.
 
 WAR `gateway-spd.war`, no mesmo modelo do `dpz-nfe`: Java 8, Spring Boot 2.7, Tomcat externo.
 
@@ -55,7 +55,7 @@ A chamada ao Maker é `POST` `application/x-www-form-urlencoded` com os campos `
 
 `POST /processos/procedure`
 
-Executa uma procedure no Oracle do `dpz-nfe`. A resposta também é imediata, com token. O gateway marca `FINALIZADO` quando a procedure retorna, ou `ERRO` com a mensagem do banco. Não há aviso do Maker.
+Executa uma procedure na base do Flow (OutSystems), a mesma conexão da fila HTTP. A resposta também é imediata, com token. O gateway marca `FINALIZADO` quando a procedure retorna, ou `ERRO` com a mensagem do banco. Não há aviso do Maker.
 
 ```json
 {
@@ -75,7 +75,9 @@ Devolve `EM_EXECUCAO`, `FINALIZADO` ou `ERRO`. Token ausente ou já removido res
 
 O endpoint do gateway não tem autenticação. O acesso fica restrito pela rede.
 
-Antes de subir, executar `sql/GATEWAY_REQUISICAO_HTTP.sql` no Oracle. O estado da fila não usa a memória dos processos do Maker.
+A conexão é a base do Flow. Variáveis `GATEWAY_FLOW_ORACLE_HOST`, `GATEWAY_FLOW_ORACLE_PORT`, `GATEWAY_FLOW_ORACLE_SERVICE_NAME`, `GATEWAY_FLOW_ORACLE_USERNAME` e `GATEWAY_FLOW_ORACLE_PASSWORD`. Sem elas, vale a URL completa em `GATEWAY_FLOW_ORACLE_JDBC_URL`. Se nenhuma estiver definida, a aplicação usa as variáveis `DPZ_XML_ORACLE_*` do mesmo servidor. O padrão local é o serviço `OUTSYDEV`, usuário `OUTSYSTEM`.
+
+Antes de subir, criar a tabela com `sql/GATEWAY_REQUISICAO_HTTP.sql` nessa base, no schema desse usuário. A aplicação não cria a tabela e consulta `GATEWAY_REQUISICAO_HTTP` sem schema. O estado da fila não usa a memória dos processos do Maker.
 
 `POST /requisicoes-http`
 
@@ -105,13 +107,13 @@ Antes de subir, executar `sql/GATEWAY_REQUISICAO_HTTP.sql` no Oracle. O estado d
 
 `tipoCorpo` aceita `NENHUM`, `JSON`, `TEXTO`, `XML`, `FORM_URLENCODED` e `BINARIO_BASE64`. Upload de arquivo não entra nesta versão. `GET` e `HEAD` usam `NENHUM`.
 
-`GET /requisicoes-http/{id}` devolve o estado, o status HTTP, o tipo e o tamanho. O corpo não vem nesse JSON.
+`GET /requisicoes-http/{id}` devolve o estado, o status HTTP, o tipo e o tamanho. Quando a chamada fica `ERRO` ou `TIMEOUT`, ou o destino responde 4xx ou 5xx, o corpo texto do erro vem no campo `corpo`. Resposta de sucesso não traz o corpo nesse JSON.
 
-`GET /requisicoes-http/{id}/resposta` baixa o corpo gravado. Zip e demais binários saem por aqui.
+`GET /requisicoes-http/{id}/resposta` baixa os bytes gravados em `CORPO_RESPOSTA`. Zip e demais binários saem por aqui. Quando a resposta é texto, o mesmo conteúdo também fica em `CORPO_RESPOSTA_TEXTO` para a procedure ler. Resposta binária deixa esse CLOB vazio.
 
 HTTP 2xx, 3xx, 4xx e 5xx do destino ficam `FINALIZADO`, com status e corpo. Timeout fica `TIMEOUT`. Falha de DNS, conexão ou TLS fica `ERRO`. Não há reenvio nem cancelamento.
 
-A fila é FIFO pelo id, com várias instâncias. A cada 5 minutos, execução `EM_EXECUCAO` que passou de `timeoutSegundos` vira `ERRO` com a mensagem `execucao interrompida na instancia <nome>`.
+A fila é FIFO pelo id, com várias instâncias. A cada 5 minutos, execução `EM_EXECUCAO` que passou de `timeoutSegundos` vira `ERRO` com a mensagem `execucao interrompida na instancia <nome> apos <timeoutSegundos> segundos sem conclusao`. Falha de chamada grava em `mensagem` o método, a URL sem a consulta, o timeout, o certificado e a cadeia da exceção.
 
 Certificado cliente: `GATEWAY_CERT_PATH` e `GATEWAY_CERT_SENHA`. A pasta é lida na hora, os `.pfx` e `.p12` são balanceados pelo id, e falha de handshake tenta o próximo arquivo. `usarCertificado: true` pede esse certificado. `certificadosDestino` é a lista PEM pública para confiar no destino naquela chamada. `GATEWAY_INSTANCIA` fixa o nome da instância; sem ela, o gateway usa o hostname.
 
