@@ -2,7 +2,7 @@ package com.api.gateway.dto;
 
 import com.api.gateway.domain.StatusProcesso;
 import io.swagger.v3.oas.annotations.media.Schema;
-import javax.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotNull;
 
 @Schema(description = "Aviso do fluxo Maker quando o processo termina")
 public class ConclusaoRequest {

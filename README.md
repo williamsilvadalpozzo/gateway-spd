@@ -2,7 +2,7 @@
 
 Serviço de redirecionamento. O Maker pede a execução de um fluxo ou de uma procedure e recebe um token na hora. O OutSystems também pode descrever uma chamada HTTP: o gateway executa, grava o resultado na base do Flow e devolve o id.
 
-WAR `gateway-spd.war`, no mesmo modelo do `dpz-nfe`: Java 8, Spring Boot 2.7, Tomcat externo.
+WAR `gateway-spd.war` para Java 17, Spring Boot 3.5 e Tomcat 10.1 externo. O `dpz-nfe` continua em Java 8.
 
 ## O que ele faz
 

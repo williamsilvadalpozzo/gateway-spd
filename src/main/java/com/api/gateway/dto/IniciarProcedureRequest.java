@@ -3,7 +3,7 @@ package com.api.gateway.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.ArrayList;
 import java.util.List;
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotBlank;
 
 @Schema(description = "Pedido para executar uma procedure Oracle")
 public class IniciarProcedureRequest {

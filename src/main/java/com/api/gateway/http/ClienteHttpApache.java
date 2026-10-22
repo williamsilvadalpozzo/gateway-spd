@@ -435,14 +435,7 @@ public class ClienteHttpApache implements ClienteHttpDestino {
 
     private static final class FabricaTls extends SSLConnectionSocketFactory {
 
-        private static final String[] PROTOCOLOS = new String[] { "TLSv1.2" };
-
-        private static final String[] CIFRAS = new String[] {
-            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-            "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
-            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
-        };
+        private static final String[] PROTOCOLOS = new String[] { "TLSv1.3", "TLSv1.2" };
 
         private FabricaTls(SSLContext contexto) {
             super(contexto, PROTOCOLOS, null, new DefaultHostnameVerifier());
@@ -450,16 +443,6 @@ public class ClienteHttpApache implements ClienteHttpDestino {
 
         @Override
         protected void prepareSocket(SSLSocket socket) {
-            List<String> suportadas = java.util.Arrays.asList(socket.getSupportedCipherSuites());
-            List<String> usadas = new ArrayList<String>();
-            for (int i = 0; i < CIFRAS.length; i++) {
-                if (suportadas.contains(CIFRAS[i])) {
-                    usadas.add(CIFRAS[i]);
-                }
-            }
-            if (!usadas.isEmpty()) {
-                socket.setEnabledCipherSuites(usadas.toArray(new String[usadas.size()]));
-            }
             SSLParameters parametros = socket.getSSLParameters();
             parametros.setApplicationProtocols(new String[] { "http/1.1" });
             socket.setSSLParameters(parametros);
