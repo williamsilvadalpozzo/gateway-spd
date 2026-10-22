@@ -4,6 +4,15 @@
   "description": "Historico de versoes do redirecionamento de fluxo, procedure e chamada HTTP.",
   "releases": [
     {
+      "version": "1.0.4",
+      "date": "2026-10-21",
+      "summary": "GET /versao mostra o WAR publicado, e o TLS 1.2 oferece as cifras do ADN.",
+      "changes": [
+        "GET /versao devolve o nome e a versao gravados na compilacao do WAR.",
+        "A chamada HTTPS em TLS 1.2 passa a oferecer as cifras AES-GCM e anuncia somente HTTP/1.1. O ADN recusava o handshake sem essa combinacao."
+      ]
+    },
+    {
       "version": "1.0.3",
       "date": "2026-10-21",
       "summary": "A chamada HTTPS usa TLS 1.2 para o destino responder.",

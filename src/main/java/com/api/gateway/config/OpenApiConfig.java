@@ -13,7 +13,7 @@ public class OpenApiConfig {
         return new OpenAPI().info(new Info()
                 .title("gateway-spd")
                 .description("Redirecionamento de fluxo do Maker, execucao de procedure e chamada HTTP com fila na base do Flow. "
-                        + "Saude e versao em /actuator/health e /actuator/info.")
-                .version("1.0.3"));
+                        + "A versao publicada fica em GET /versao. Saude em /actuator/health.")
+                .version("1.0.4"));
     }
 }

@@ -121,7 +121,7 @@ Segredo de header, senha e conteúdo de certificado não entram no log.
 
 ## Actuator e Swagger
 
-`GET /actuator/health` e `GET /actuator/info`.
+`GET /versao` devolve o nome e a versão do WAR publicado. `GET /actuator/health` e `GET /actuator/info`.
 
 Swagger em `/swagger/index.html`. O contrato JSON fica em `/v3/api-docs`.
 

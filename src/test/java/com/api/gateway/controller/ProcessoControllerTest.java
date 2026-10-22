@@ -65,7 +65,13 @@ class ProcessoControllerTest {
                 .andExpect(jsonPath("$.paths['/requisicoes-http']").exists())
                 .andExpect(jsonPath("$.paths['/requisicoes-http/{id}']").exists())
                 .andExpect(jsonPath("$.paths['/requisicoes-http/{id}/resposta']").exists())
+                .andExpect(jsonPath("$.paths['/versao']").exists())
                 .andExpect(jsonPath("$.info.title").value("gateway-spd"));
+
+        mvc.perform(get("/versao"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nome").value("gateway-spd"))
+                .andExpect(jsonPath("$.versao").value("1.0.4"));
 
         int swagger = mvc.perform(get("/swagger/index.html")).andReturn().getResponse().getStatus();
         assertTrue(swagger == 200 || swagger == 302, "swagger status " + swagger);
