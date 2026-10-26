@@ -71,7 +71,7 @@ class ProcessoControllerTest {
         mvc.perform(get("/versao"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nome").value("gateway-spd"))
-                .andExpect(jsonPath("$.versao").value("1.0.5"));
+                .andExpect(jsonPath("$.versao").value("1.0.6"));
 
         int swagger = mvc.perform(get("/swagger/index.html")).andReturn().getResponse().getStatus();
         assertTrue(swagger == 200 || swagger == 302, "swagger status " + swagger);

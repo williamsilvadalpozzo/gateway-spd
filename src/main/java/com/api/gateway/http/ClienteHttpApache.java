@@ -435,10 +435,17 @@ public class ClienteHttpApache implements ClienteHttpDestino {
 
     private static final class FabricaTls extends SSLConnectionSocketFactory {
 
-        private static final String[] PROTOCOLOS = new String[] { "TLSv1.3", "TLSv1.2" };
+        // O ADN corrompe o primeiro registro em TLS 1.3 (Tag mismatch). A consulta fica em TLS 1.2 com AES-GCM.
+        private static final String[] PROTOCOLOS = new String[] { "TLSv1.2" };
+        private static final String[] CIFRAS = new String[] {
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+            "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+        };
 
         private FabricaTls(SSLContext contexto) {
-            super(contexto, PROTOCOLOS, null, new DefaultHostnameVerifier());
+            super(contexto, PROTOCOLOS, CIFRAS, new DefaultHostnameVerifier());
         }
 
         @Override
