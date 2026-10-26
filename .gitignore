@@ -1,4 +1,6 @@
-target/
+node_modules/
+dist/
+gateway.config.json
 .idea/
 *.iml
 .classpath

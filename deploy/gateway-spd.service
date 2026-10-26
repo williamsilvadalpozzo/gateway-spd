@@ -1,0 +1,18 @@
+[Unit]
+Description=Gateway SPD
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gateway-spd
+Group=gateway-spd
+WorkingDirectory=/opt/gateway-spd
+EnvironmentFile=-/etc/gateway-spd.env
+ExecStart=/usr/bin/node /opt/gateway-spd/app/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

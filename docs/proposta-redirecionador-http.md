@@ -330,7 +330,7 @@ O corpo recebido, inclusive quando compactado, fica integral no `BLOB`.
 `usarCertificado` apresenta um certificado nosso, lido da pasta, quando o
 destino exige autenticacao mutua. A URL continua sendo informada em `url`.
 
-`certificadosDestino` resolve o caso em que o Java recusa o certificado do
+`certificadosDestino` resolve o caso em que o cliente HTTPS recusa o certificado do
 servidor. O truststore padrao da JVM nao contem a autoridade daquele destino,
 como ocorreu na distribuicao da SEFAZ com a raiz GlobalSign. O campo e uma
 lista de strings PEM, uma por certificado publico: raiz e intermediarios.
@@ -345,7 +345,7 @@ truststore padrao.
 
 Como a fila e assincrona, os PEM ficam em `CERTIFICADOS_DESTINO` para a
 instancia que for executar a chamada. Um destino publico com cadeia ja aceita
-pelo Java nao precisa enviar nada.
+pelo cliente HTTPS nao precisa enviar nada.
 
 ## Seguranca
 

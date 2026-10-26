@@ -1,8 +1,8 @@
 # gateway-spd
 
-Serviço de redirecionamento. O Maker pede a execução de um fluxo ou de uma procedure e recebe um token na hora. O OutSystems também pode descrever uma chamada HTTP: o gateway executa, grava o resultado na base do Flow e devolve o id.
+Serviço Node.js de redirecionamento. O Maker pede a execução de um fluxo ou de uma procedure e recebe um token na hora. O OutSystems também pode descrever uma chamada HTTP: o gateway executa, grava o resultado na base do Flow e devolve o id.
 
-WAR `gateway-spd.war` para Java 17, Spring Boot 3.5 e Tomcat 10.1 externo. O `dpz-nfe` continua em Java 8.
+Requer Node.js 20 ou superior. Não há etapa de build: a aplicação executa diretamente pelo npm.
 
 ## O que ele faz
 
@@ -119,20 +119,67 @@ Certificado cliente: `GATEWAY_CERT_PATH` e `GATEWAY_CERT_SENHA`. A pasta é lida
 
 Segredo de header, senha e conteúdo de certificado não entram no log.
 
-## Actuator e Swagger
+## Monitoramento
 
-`GET /versao` devolve o nome e a versão do WAR publicado. `GET /actuator/health` e `GET /actuator/info`.
+`GET /versao` devolve o nome e a versão do `package.json`. `GET /actuator/health` verifica se o processo está ativo.
 
-Swagger em `/swagger/index.html`. O contrato JSON fica em `/v3/api-docs`.
+Os endpoints também ficam disponíveis com o prefixo `/gateway-spd`, para compatibilidade com a publicação anterior.
 
-## Subir
+## Gerar o pacote de produção
 
-```bash
-mvn clean package
+```powershell
+npm run build
 ```
 
-O arquivo fica em `target/gateway-spd.war`. Porta local: `8020`.
+O artefato `dist/gateway-spd-<versao>-linux-x64.tar.gz` contém o código e o
+`node_modules` de produção preparado para Linux x64. Ele pode ser gerado no
+Windows, mas requer `tar` disponível na máquina de build.
+
+O JavaScript não é compilado: o build empacota uma instalação reproduzível das
+dependências travadas pelo `package-lock.json`. O servidor precisa de Node.js 20
+ou superior, mas não precisa executar `npm install`.
+
+## Publicar no Linux
+
+1. Instale o Node.js 20 ou superior.
+2. Crie o usuário de serviço `gateway-spd`.
+3. Extraia o conteúdo do pacote em `/opt`. O diretório final deve ser
+   `/opt/gateway-spd`.
+4. Copie `gateway.config.example.json` para `/etc/gateway-spd.json`, preencha os
+   dados do Oracle e dos certificados e limite a leitura ao usuário do serviço.
+5. Crie `/etc/gateway-spd.env` com:
+
+```text
+GATEWAY_CONFIG=/etc/gateway-spd.json
+```
+
+6. Proteja os dois arquivos:
+
+```bash
+sudo chown root:gateway-spd /etc/gateway-spd.json /etc/gateway-spd.env
+sudo chmod 640 /etc/gateway-spd.json /etc/gateway-spd.env
+```
+
+7. Copie `deploy/gateway-spd.service` para `/etc/systemd/system/`.
+8. Execute:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now gateway-spd
+sudo systemctl status gateway-spd
+```
+
+O caminho da configuração também pode ser informado em `GATEWAY_CONFIG`; as
+variáveis de ambiente descritas acima têm prioridade sobre o arquivo. A porta
+padrão é `8020`.
+
+O Tomcat Manager não publica esse artefato. O serviço Node é administrado pelo
+`systemctl`; um proxy reverso pode manter a URL externa já utilizada.
 
 ## Log
 
-Arquivo `logs/gateway-spd.log` na pasta do Tomcat (`catalina.base/logs`). Fora do Tomcat, `./logs/gateway-spd.log`. Rotação diária, 30 dias. Processo em erro entra como `ERROR` com o token, a origem e a mensagem. Nível: `GATEWAY_LOG_LEVEL`.
+Os logs são enviados para o journal do systemd:
+
+```bash
+journalctl -u gateway-spd -f
+```

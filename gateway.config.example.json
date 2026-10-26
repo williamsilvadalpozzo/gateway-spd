@@ -1,0 +1,16 @@
+{
+  "porta": 8020,
+  "instancia": "1",
+  "certificados": {
+    "path": "/certificados",
+    "senha": ""
+  },
+  "oracle": {
+    "host": "",
+    "porta": "1521",
+    "servico": "",
+    "usuario": "",
+    "senha": "",
+    "jdbcUrl": ""
+  }
+}
